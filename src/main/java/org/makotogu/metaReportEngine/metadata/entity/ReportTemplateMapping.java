@@ -7,14 +7,13 @@ import java.time.LocalDateTime;
 
 @AllArgsConstructor
 @Data
-public class ReportParameter {
+public class ReportTemplateMapping {
 
     private Long id;
-    private String reportId;
-    private String parameterName;
-    private String parameterType;
-    private String defaultValue;
-    private Boolean isRequired;
+    private String reportDefId;
+    private String templateTag;
+    private String dataSourceRef;
+    private String dataExpression;
     private String description;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

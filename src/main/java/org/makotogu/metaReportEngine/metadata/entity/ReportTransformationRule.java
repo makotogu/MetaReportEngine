@@ -8,17 +8,17 @@ import java.time.LocalDateTime;
 
 @AllArgsConstructor
 @Data
-public class ReportDataSource {
+public class ReportTransformationRule {
 
     private Long id;
     private String reportDefId;
-    private String datasourceAlias;
-    private String queryType;
-    private String queryRef;
-    private JsonNode paramMapping;
-    private String resultStructure;
+    private String ruleAlias;
+    private String transformerType;
+    private JsonNode inputRefs;
+    private JsonNode config;
+    private String outputVariableName;
+    private JsonNode dependencyRefs;
     private String description;
-    private Integer executionOrder;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
