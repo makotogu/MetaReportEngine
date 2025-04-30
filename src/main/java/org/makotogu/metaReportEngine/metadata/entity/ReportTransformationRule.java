@@ -4,9 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.util.List;
 
-@AllArgsConstructor
 @Data
 public class ReportTransformationRule {
 
@@ -14,11 +14,11 @@ public class ReportTransformationRule {
     private String reportDefId;
     private String ruleAlias;
     private String transformerType;
-    private JsonNode inputRefs;
+    private List<String> inputRefs;
     private JsonNode config;
     private String outputVariableName;
-    private JsonNode dependencyRefs;
+    private List<String> dependencyRefs;
     private String description;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private OffsetDateTime createdAt;
+    private OffsetDateTime updatedAt;
 }

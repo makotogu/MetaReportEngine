@@ -3,9 +3,8 @@ package org.makotogu.metaReportEngine.metadata.entity;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
-@AllArgsConstructor
 @Data
 public class ReportTemplateMapping {
 
@@ -15,6 +14,6 @@ public class ReportTemplateMapping {
     private String dataSourceRef;
     private String dataExpression;
     private String description;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private OffsetDateTime createdAt;
+    private OffsetDateTime updatedAt;
 }

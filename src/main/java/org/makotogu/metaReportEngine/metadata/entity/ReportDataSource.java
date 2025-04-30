@@ -4,9 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
-@AllArgsConstructor
 @Data
 public class ReportDataSource {
 
@@ -19,6 +18,6 @@ public class ReportDataSource {
     private String resultStructure;
     private String description;
     private Integer executionOrder;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private OffsetDateTime createdAt;
+    private OffsetDateTime updatedAt;
 }

@@ -4,11 +4,14 @@ import lombok.AllArgsConstructor;
 import org.makotogu.metaReportEngine.metadata.dto.ReportConfigurationDto;
 import org.makotogu.metaReportEngine.metadata.entity.ReportDataSource;
 import org.makotogu.metaReportEngine.metadata.entity.ReportDefinition;
+import org.makotogu.metaReportEngine.metadata.entity.ReportTemplateMapping;
 import org.makotogu.metaReportEngine.metadata.entity.ReportTransformationRule;
 import org.makotogu.metaReportEngine.metadata.persistence.ReportDataSourceMapper;
 import org.makotogu.metaReportEngine.metadata.persistence.ReportDefinitionMapper;
+import org.makotogu.metaReportEngine.metadata.persistence.ReportTemplateMappingMapper;
 import org.makotogu.metaReportEngine.metadata.persistence.ReportTransformationRuleMapper;
 import org.makotogu.metaReportEngine.shard.exception.ReportConfNotFoundException;
+import org.makotogu.metaReportEngine.shard.util.CacheUtil;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -58,6 +61,8 @@ public class MetadataService {
     private final ReportDefinitionMapper reportDefinitionMapper;
     private final ReportDataSourceMapper reportDataSourceMapper;
     private final ReportTransformationRuleMapper reportTransformationRuleMapper;
+    private final ReportTemplateMappingMapper reportTemplateMappingMapper;
+    private final CacheUtil cacheUtil;
 
     public List<ReportDefinition> getAllReportDefinition() {
         return reportDefinitionMapper.getAllReportDefinition();
@@ -68,13 +73,27 @@ public class MetadataService {
         if (reportDefinition != null) {
             // 获取 report_def_id
             Long reportDefId = reportDefinition.getId();
+            // 首先尝试从 caffeine cache 中获取 ReportConfigurationDto
+            ReportConfigurationDto reportConfigurationDto = cacheUtil.getReportConfig(reportDefId);
+            if (reportConfigurationDto != null) {
+                return reportConfigurationDto;
+            }
             // 获取数据源配置
             List<ReportDataSource> reportDataSources = reportDataSourceMapper.getReportDataSourcesByReportDefId(reportDefId);
             // 获取数据转换规则配置
             List<ReportTransformationRule> transformationRules = reportTransformationRuleMapper.getTransformationRulesByReportDefId(reportDefId);
+            // 获取模板映射配置
+            List<ReportTemplateMapping> templateMappings = reportTemplateMappingMapper.getReportTemplateMappingsByReportDefId(reportDefId);
+            // 数据组装
+            reportConfigurationDto = new ReportConfigurationDto();
+            reportConfigurationDto.setDefinition(reportDefinition);
+            reportConfigurationDto.setDataSources(reportDataSources);
+            reportConfigurationDto.setTransformationRules(transformationRules);
+            reportConfigurationDto.setTemplateMappings(templateMappings);
+            cacheUtil.putReportConfig(reportDefId, reportConfigurationDto);
+            return reportConfigurationDto;
         } else {
             throw new ReportConfNotFoundException(reportId);
         }
-        return null;
     }
 }
