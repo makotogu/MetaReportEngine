@@ -12,7 +12,7 @@ public interface DatasourceExecutor {
      * @param datasourceConfig 数据源配置 DTO
      * @param executionContext 当前执行上下文，用于获取参数值
      * @return 查询结果 (通常是 List<Map<String, Object>>, Map<String, Object>, 或 Object)
-     * @throws DatasourceExecutionException 如果查询执行失败
+     * @throws org.makotogu.metaReportEngine.shard.exception.DatasourceExecutionException 如果查询执行失败
      */
     Object execute(ReportConfigurationDto.DataSourceConfig datasourceConfig, Map<String, Object> executionContext);
 

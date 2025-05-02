@@ -20,4 +20,5 @@ public class ReportDataSource {
     private Integer executionOrder;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
+    private String datasourceContext;
 }

@@ -1,7 +1,16 @@
 #数据库配置
 spring:
   datasource:
+    default:
       url: jdbc:postgresql://localhost:5432/test
       username: admin
       password: d1c2s3h4
       driver-class-name: org.postgresql.Driver
+    risk:
+      url: jdbc:postgresql://localhost:5432/test
+      username: admin
+      password: d1c2s3h4
+      driver-class-name: org.postgresql.Driver
+logging:
+  level:
+    org.makotogu.metaReportEngine.test.mapper: trace

@@ -61,6 +61,7 @@ public class ReportConfigurationDto {
         private String queryRef;
         private JsonNode paramMapping; // 使用 JsonNode 保持灵活性
         private String resultStructure;
+        private String datasourceContext;
         private int executionOrder;
 
         public DataSourceConfig(ReportDataSource reportDataSource) {
@@ -69,6 +70,7 @@ public class ReportConfigurationDto {
             this.queryRef = reportDataSource.getQueryRef();
             this.paramMapping = reportDataSource.getParamMapping();
             this.resultStructure = reportDataSource.getResultStructure();
+            this.datasourceContext = reportDataSource.getDatasourceContext();
             this.executionOrder = reportDataSource.getExecutionOrder();
         }
     }

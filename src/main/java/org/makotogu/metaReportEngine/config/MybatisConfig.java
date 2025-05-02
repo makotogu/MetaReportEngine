@@ -1,20 +1,24 @@
 package org.makotogu.metaReportEngine.config;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import lombok.AllArgsConstructor;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.makotogu.metaReportEngine.config.handler.JacksonTypeHandler;
 import org.mybatis.spring.annotation.MapperScan;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Configuration;
 
 import javax.annotation.PostConstruct;
 
-@AllArgsConstructor
-@MapperScan("org.makotogu.metaReportEngine.metadata.*")
+
+@MapperScan(value = {"org.makotogu.metaReportEngine.metadata.*"}, sqlSessionFactoryRef = "defaultBusinessSqlSessionFactory")
 @Configuration
 public class MybatisConfig {
 
     private final SqlSessionFactory sqlSessionFactory;
+
+    public MybatisConfig(@Qualifier("defaultBusinessSqlSessionFactory") SqlSessionFactory sqlSessionFactory) {
+        this.sqlSessionFactory = sqlSessionFactory;
+    }
 
     @PostConstruct
     public void addTypeHandlers() {

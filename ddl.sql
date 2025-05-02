@@ -59,7 +59,8 @@ COMMENT ON COLUMN report_datasource.updated_at IS '最后更新时间 (带时区
 
 -- 即使没有外键约束, 索引对于查询性能仍然非常重要
 CREATE INDEX idx_report_datasource_report_def_id ON report_datasource (report_def_id);
-
+ALTER TABLE report_datasource ADD COLUMN datasource_context VARCHAR(50) NULL;
+COMMENT ON COLUMN report_datasource.datasource_context IS '用于选择业务数据源的上下文标识 (e.g., risk, crm)';
 
 CREATE TABLE report_transformation_rule
 (
