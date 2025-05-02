@@ -11,7 +11,6 @@ import java.sql.CallableStatement;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.List;
 
 public class JacksonTypeHandler<T> extends BaseTypeHandler<T> {
 
@@ -70,13 +69,9 @@ public class JacksonTypeHandler<T> extends BaseTypeHandler<T> {
 
     private T readValue(String json) throws SQLException {
         try {
-            if (typeReference.getType() == JsonNode.class) {
-                return (T) objectMapper.readTree(json);
-            } else if (typeReference.getType() instanceof java.lang.reflect.ParameterizedType) {
-                java.lang.reflect.ParameterizedType pt = (java.lang.reflect.ParameterizedType) typeReference.getType();
-                if (pt.getRawType() == List.class && pt.getActualTypeArguments()[0] == String.class) {
-                    return (T) objectMapper.readValue(json, new TypeReference<List<String>>() {
-                    });
+            if (typeReference.getType() == JsonNode.class || JsonNode.class.isAssignableFrom((Class<?>) typeReference.getType())) {
+                if (JsonNode.class.equals(typeReference.getType())) {
+                    return (T) objectMapper.readTree(json);
                 }
             }
             return objectMapper.readValue(json, typeReference);

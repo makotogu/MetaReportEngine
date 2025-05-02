@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit;
 public class CacheConfig {
 
     @Bean
-    public Cache<Long, ReportConfigurationDto> reportConfCache() {
+    public Cache<String, ReportConfigurationDto> reportConfCache() {
         return Caffeine.newBuilder()
                 .maximumSize(100)
                 .expireAfterWrite(10, TimeUnit.MINUTES)

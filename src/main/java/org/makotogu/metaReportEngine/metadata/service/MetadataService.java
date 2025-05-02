@@ -1,6 +1,7 @@
 package org.makotogu.metaReportEngine.metadata.service;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.makotogu.metaReportEngine.metadata.dto.ReportConfigurationDto;
 import org.makotogu.metaReportEngine.metadata.entity.ReportDataSource;
 import org.makotogu.metaReportEngine.metadata.entity.ReportDefinition;
@@ -52,10 +53,12 @@ import java.util.List;
  * 返回组装好的 DTO:
  * 将最终组装完成并通过验证（或至少成功解析）的 ReportConfigurationDto 对象返回给调用方 (ReportGenerationService)。
  * </p>
- * 总结来说，MetadataService 的核心任务是： 接收 reportId -> 检查缓存 -> (缓存未命中) -> 查询各配置表 -> 校验基础数据 -> 解析JSON字段 -> 组装成ReportConfigurationDto -> 存入缓存 -> 返回 ReportConfigurationDto。 它封装了与配置数据获取和准备相关的所有复杂性，为上层服务提供了一个干净、一致且带有缓存优化的配置视图。
+ * 总结来说，MetadataService 的核心任务是： 接收 reportId -> 检查缓存 -> (缓存未命中) -> 查询各配置表 -> 校验基础数据 -> 解析JSON字段 -> 组装成ReportConfigurationDto -> 存入缓存 -> 返回 ReportConfigurationDto。
+ * 它封装了与配置数据获取和准备相关的所有复杂性，为上层服务提供了一个干净、一致且带有缓存优化的配置视图。
  */
 @Service
 @AllArgsConstructor
+@Slf4j
 public class MetadataService {
 
     private final ReportDefinitionMapper reportDefinitionMapper;
@@ -69,31 +72,35 @@ public class MetadataService {
     }
 
     public ReportConfigurationDto getReportConfiguration(String reportId) {
+        log.info("获取配置: {}", reportId);
         ReportDefinition reportDefinition = reportDefinitionMapper.getReportDefinitionById(reportId);
-        if (reportDefinition != null) {
-            // 获取 report_def_id
-            Long reportDefId = reportDefinition.getId();
-            // 首先尝试从 caffeine cache 中获取 ReportConfigurationDto
-            ReportConfigurationDto reportConfigurationDto = cacheUtil.getReportConfig(reportDefId);
-            if (reportConfigurationDto != null) {
-                return reportConfigurationDto;
-            }
-            // 获取数据源配置
-            List<ReportDataSource> reportDataSources = reportDataSourceMapper.getReportDataSourcesByReportDefId(reportDefId);
-            // 获取数据转换规则配置
-            List<ReportTransformationRule> transformationRules = reportTransformationRuleMapper.getTransformationRulesByReportDefId(reportDefId);
-            // 获取模板映射配置
-            List<ReportTemplateMapping> templateMappings = reportTemplateMappingMapper.getReportTemplateMappingsByReportDefId(reportDefId);
-            // 数据组装
-            reportConfigurationDto = new ReportConfigurationDto();
-            reportConfigurationDto.setDefinition(reportDefinition);
-            reportConfigurationDto.setDataSources(reportDataSources);
-            reportConfigurationDto.setTransformationRules(transformationRules);
-            reportConfigurationDto.setTemplateMappings(templateMappings);
-            cacheUtil.putReportConfig(reportDefId, reportConfigurationDto);
-            return reportConfigurationDto;
-        } else {
+        if (reportDefinition == null) {
+            log.error("配置不存在: {}", reportId);
             throw new ReportConfNotFoundException(reportId);
         }
+        // 获取 report_def_id
+        Long reportDefId = reportDefinition.getId();
+        String reportCacheKey = "reportConfig_"+ reportDefId;
+        // 首先尝试从 caffeine cache 中获取 ReportConfigurationDto
+        ReportConfigurationDto reportConfigurationDto = cacheUtil.getReportConfig(reportCacheKey);
+        if (reportConfigurationDto != null) {
+            log.info("从缓存中获取到配置: {}", reportConfigurationDto);
+            return reportConfigurationDto;
+        }
+        // 获取数据源配置
+        List<ReportDataSource> reportDataSources = reportDataSourceMapper.getReportDataSourcesByReportDefId(reportDefId);
+        // 获取数据转换规则配置
+        List<ReportTransformationRule> transformationRules = reportTransformationRuleMapper.getTransformationRulesByReportDefId(reportDefId);
+        // 获取模板映射配置
+        List<ReportTemplateMapping> templateMappings = reportTemplateMappingMapper.getReportTemplateMappingsByReportDefId(reportDefId);
+        // 数据组装
+        reportConfigurationDto = new ReportConfigurationDto();
+        reportConfigurationDto.setDefinition(reportDefinition);
+        reportConfigurationDto.setDataSources(reportDataSources);
+        reportConfigurationDto.setTransformationRules(transformationRules);
+        reportConfigurationDto.setTemplateMappings(templateMappings);
+        cacheUtil.putReportConfig(reportCacheKey, reportConfigurationDto);
+        return reportConfigurationDto;
+
     }
 }
