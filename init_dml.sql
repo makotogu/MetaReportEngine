@@ -106,3 +106,77 @@ SELECT * FROM report_transformation_rule WHERE report_def_id = (SELECT id FROM r
 SELECT * FROM report_template_mapping WHERE report_def_id = (SELECT id FROM report_definition WHERE report_id = 'MINI_CUST_SUMMARY_V1');
 
 COMMIT; -- 如果需要的话
+
+
+
+-- MetaReportEngine - 添加 FormatterTransformer 测试数据
+-- 场景: 扩展迷你客户摘要报告 (MINI_CUST_SUMMARY_V1, report_def_id = 1)
+
+-- 3. 添加新的转换规则配置 (report_transformation_rule)
+
+--    规则3: 格式化报告生成日期 (假设日期在上下文中以 'reportGenDate' 提供)
+INSERT INTO report_transformation_rule (report_def_id, rule_alias, transformer_type, input_refs, config, output_variable_name, description)
+VALUES (
+           1, -- 关联 report_definition.id = 1
+           'format_report_date_rule',
+           'FORMATTER',                                  -- 使用格式化转换器
+           '["context.reportGenDate"]'::jsonb,           -- 输入依赖: 从执行上下文获取 reportGenDate
+           '{"pattern": "yyyy年MM月dd日"}'::jsonb,       -- 配置: 日期格式化模式
+           'final_formatted_report_date',                -- 输出变量名
+           '格式化报告生成日期'
+       );
+-- 注意: 'context.reportGenDate' 引用的是 executionContext 中 key 为 "reportGenDate" 的值。
+-- 在调用 generateReport 时需要传入这个值，例如: Map.of("reportGenDate", LocalDate.now())
+
+
+--    规则4: 格式化总贷款额为纯数字字符串 (依赖之前的 total_loan_rule)
+INSERT INTO report_transformation_rule (report_def_id, rule_alias, transformer_type, input_refs, config, output_variable_name, description)
+VALUES (
+           1, -- 关联 report_definition.id = 1
+           'numeric_loan_total_rule',
+           'FORMATTER',                                  -- 使用格式化转换器
+           '["total_loan_rule"]'::jsonb,                 -- 输入依赖: total_loan_rule 的输出 (total_amount_raw)
+           '{"pattern": "#,##0.00"}'::jsonb,             -- 配置: 数字格式化模式 (无单位)
+           'final_numeric_loan_total',                   -- 输出变量名
+           '将贷款总额格式化为带千分位的纯数字字符串'
+       );
+
+
+-- 4. 添加新的模板映射配置 (report_template_mapping)
+
+--    映射3: 格式化后的报告日期
+INSERT INTO report_template_mapping (report_def_id, template_tag, data_source_ref, description)
+VALUES (
+           1, -- 关联 report_definition.id = 1
+           '{{report_date_formatted}}',                 -- Word 模板中的新标签
+           'format_report_date_rule',                   -- 数据来源: format_report_date_rule 的输出
+           '将格式化后的报告日期填充到模板'
+       );
+
+--    映射4: 纯数字格式的贷款总额
+INSERT INTO report_template_mapping (report_def_id, template_tag, data_source_ref, description)
+VALUES (
+           1, -- 关联 report_definition.id = 1
+           '{{loan_total_numeric}}',                   -- Word 模板中的新标签
+           'numeric_loan_total_rule',                  -- 数据来源: numeric_loan_total_rule 的输出
+           '将纯数字格式的贷款总额填充到模板'
+       );
+
+-- 检查新插入的数据 (可选)
+SELECT * FROM report_transformation_rule WHERE report_def_id = 1 AND rule_alias IN ('format_report_date_rule', 'numeric_loan_total_rule');
+SELECT * FROM report_template_mapping WHERE report_def_id = 1 AND template_tag IN ('{{report_date_formatted}}', '{{loan_total_numeric}}');
+
+COMMIT; -- 如果需要的话
+
+
+-- 找到 formatted_loan_rule (假设 report_def_id = 1)
+UPDATE report_transformation_rule
+SET input_refs = '["total_amount_raw"]'::jsonb -- 将输入引用修改为前一个规则的输出变量名
+WHERE report_def_id = 1 AND rule_alias = 'formatted_loan_rule';
+
+-- 同时，也需要修改依赖 total_loan_rule 的 numeric_loan_total_rule
+UPDATE report_transformation_rule
+SET input_refs = '["total_amount_raw"]'::jsonb -- 将输入引用修改为前一个规则的输出变量名
+WHERE report_def_id = 1 AND rule_alias = 'numeric_loan_total_rule';
+
+COMMIT; -- 如果需要
