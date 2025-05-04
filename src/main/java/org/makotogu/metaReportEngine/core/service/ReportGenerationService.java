@@ -13,6 +13,7 @@ import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDate;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -106,6 +107,7 @@ public class ReportGenerationService {
         // 5. 准备渲染数据
         log.info("Preparing render data for reportId: {}", reportId);
         Map<String, Object> renderData = new HashMap<>();
+        List<String> tableRenderKeys = new ArrayList<>();
         if (!CollectionUtils.isEmpty(config.getTemplateMappings())) {
             // TODO: 实现 SpEL 支持 dataExpression (如果需要)
             for (ReportConfigurationDto.MappingConfig mappingConfig : config.getTemplateMappings()) {
@@ -120,6 +122,9 @@ public class ReportGenerationService {
                 if (dataValue != null) {
                     // TODO: 如果 mappingConfig.getDataExpression() 不为空, 在这里使用 SpEL 对 dataValue 求值
                     renderData.put(renderKey, dataValue);
+                    if ("TABLE_BUILDER".equals(getProducingTransformerType(dataSourceRef, config))) { // 获取来源类型
+                        tableRenderKeys.add(renderKey);
+                    }
                     log.trace("Mapping template tag '{}' to render key '{}' with value from ref '{}'", templateTag, renderKey, dataSourceRef);
                 } else {
                     log.warn("Data source ref '{}' for template tag '{}' not found in execution context. Tag will likely be empty.", dataSourceRef, templateTag);
@@ -135,7 +140,7 @@ public class ReportGenerationService {
         // 6. 调用渲染层 (已有 RenderingService 实现)
         try {
             log.debug("Calling rendering service for template: {}", config.getDefinition().getTemplatePath());
-            byte[] reportBytes = renderingService.renderReport(config.getDefinition().getTemplatePath(), renderData);
+            byte[] reportBytes = renderingService.renderReport(config.getDefinition().getTemplatePath(), renderData, tableRenderKeys);
             log.info("Report successfully rendered for reportId: {}", reportId);
             return reportBytes;
         } catch (RenderingException e) {
@@ -145,6 +150,14 @@ public class ReportGenerationService {
             log.error("Unexpected error during report generation for reportId: {}", reportId, e);
             throw new ReportGenerationException("Unexpected error during report generation for " + reportId, e); // 假设有这个异常
         }
+    }
+
+    private String getProducingTransformerType(String dataSourceRef, ReportConfigurationDto config) {
+        List<ReportConfigurationDto.RuleConfig> tableRules = config.getTransformationRules().stream().filter(transformationRule -> transformationRule.getOutputVariableName().equals(dataSourceRef)).collect(Collectors.toList());
+        if (tableRules.size() > 1) {
+            throw new ReportGenerationException("Multiple transformation rules produce the same output variable: " + dataSourceRef);
+        }
+        return tableRules.isEmpty() ? null : tableRules.get(0).getTransformerType();
     }
 
     /**

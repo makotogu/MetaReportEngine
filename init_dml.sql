@@ -81,7 +81,7 @@ INSERT INTO report_template_mapping (report_def_id, template_tag, data_source_re
 VALUES (
     1, -- 关联 report_definition.id = 1
     '{{formatted_loan_total}}',                 -- Word 模板中的标签
-    'formatted_loan_rule',                      -- 数据来源: formatted_loan_rule 规则的输出
+    'final_formatted_total',                      -- 数据来源: formatted_loan_rule 规则的输出
     '将格式化后的贷款总额填充到模板'
 );
 
@@ -149,7 +149,7 @@ INSERT INTO report_template_mapping (report_def_id, template_tag, data_source_re
 VALUES (
            1, -- 关联 report_definition.id = 1
            '{{report_date_formatted}}',                 -- Word 模板中的新标签
-           'format_report_date_rule',                   -- 数据来源: format_report_date_rule 的输出
+           'final_formatted_report_date',                   -- 数据来源: format_report_date_rule 的输出
            '将格式化后的报告日期填充到模板'
        );
 
@@ -158,7 +158,7 @@ INSERT INTO report_template_mapping (report_def_id, template_tag, data_source_re
 VALUES (
            1, -- 关联 report_definition.id = 1
            '{{loan_total_numeric}}',                   -- Word 模板中的新标签
-           'numeric_loan_total_rule',                  -- 数据来源: numeric_loan_total_rule 的输出
+           'final_numeric_loan_total',                  -- 数据来源: numeric_loan_total_rule 的输出
            '将纯数字格式的贷款总额填充到模板'
        );
 
@@ -180,3 +180,113 @@ SET input_refs = '["total_amount_raw"]'::jsonb -- 将输入引用修改为前一
 WHERE report_def_id = 1 AND rule_alias = 'numeric_loan_total_rule';
 
 COMMIT; -- 如果需要
+
+
+UPDATE report_transformation_rule
+SET
+    transformer_type = 'UNIT_CONVERTER',
+    -- 注意 input_refs 仍然是 'total_amount_raw'
+    config = '{
+      "thresholds": [10000, 100000000],
+      "units": ["元", "万元", "亿元"],
+      "precision": 2,
+      "template": "{{value}} {{unit}}",
+      "roundingMode": "HALF_UP",
+      "useGrouping": true
+    }'::jsonb,
+    output_variable_name = 'final_formatted_total_with_unit', -- 改个新名字避免冲突
+    description = '使用单位转换器格式化总贷款额'
+WHERE report_def_id = 1 AND rule_alias = 'formatted_loan_rule'; -- 或者用一个新的 rule_alias
+
+UPDATE report_template_mapping
+SET
+    data_source_ref = 'final_formatted_total_with_unit',
+    template_tag = '{{formatted_loan_total_unit}}'
+WHERE report_def_id = 1 AND template_tag = '{{formatted_loan_total}}';
+
+
+-- 规则: 根据总贷款额判断风险提示语
+INSERT INTO report_transformation_rule (report_def_id, rule_alias, transformer_type, input_refs, config, output_variable_name, description)
+VALUES (
+           1,
+           'risk_level_text_rule',
+           'CONDITIONAL_TEXT',
+           '["total_amount_raw"]'::jsonb, -- 依赖总贷款额
+           '{
+             "condition": "#input0 > 100000",
+             "trueTemplate": "警告：客户 {{cust_name_ds}} 贷款总额 {{final_formatted_total_with_unit}} 较高，请重点关注！",
+             "falseTemplate": "客户 {{cust_name_ds}} 贷款情况正常。"
+           }'::jsonb,   -- 条件: 总额大于 10 万 (#input0 引用第一个输入)  -- 条件为真时的模板 (包含变量替换)  -- 条件为假时的模板
+           'final_risk_text', -- 输出变量名
+           '根据贷款总额生成风险提示语'
+       );
+
+-- 别忘了添加 template_mapping
+INSERT INTO report_template_mapping (report_def_id, template_tag, data_source_ref)
+VALUES (1, '{{risk_warning}}', 'final_risk_text'); -- 假设模板中有 {{risk_warning}}
+
+
+--    规则5: 使用 TableBuilder 构建贷款明细表格数据
+INSERT INTO report_transformation_rule (report_def_id, rule_alias, transformer_type, input_refs, config, output_variable_name, description)
+VALUES (
+           1, -- 关联 report_definition.id = 1
+           'loan_table_builder_rule',      -- 规则别名 (可以与之前的例子相同，只要 report_def_id 不同即可)
+           'TABLE_BUILDER',                -- 使用 TableBuilder
+           '["cust_loans_ds"]'::jsonb,      -- 输入依赖: 原始贷款列表 (cust_loans_ds 已在之前定义)
+           -- 配置 JSON (与上个例子类似)
+           '{
+             "columns": [
+               {
+                 "valueExpression": "#row.id",
+                 "outputKey": "loanId"
+               },
+               {
+                 "valueExpression": "#row.loanType",
+                 "outputKey": "type"
+               },
+               {
+                 "valueExpression": "#row.amount / 10000",
+                 "outputKey": "amountWan",
+                 "formatter": { "pattern": "#,##0.00", "useGrouping": true }
+               },
+               {
+                 "valueExpression": "#row.issueDate",
+                 "outputKey": "issueDate",
+                 "formatter": { "pattern": "yyyy-MM-dd" }
+               }
+             ],
+             "totalRow": {
+               "enabled": true,
+               "labelColumn": "loanId",
+               "labelValue": "合计",
+               "sumColumns": ["amountWan"],
+               "formatters": {
+                 "amountWan": { "pattern": "#,##0.00", "useGrouping": true }
+               }
+             }
+           }'::jsonb,
+           'final_loan_detail_table_data', -- 输出变量名 (区别于之前的 total_amount_raw 等)
+           '构建贷款明细表格数据并添加合计行 (用于迷你摘要)'
+       )
+ON CONFLICT (report_def_id, rule_alias) DO UPDATE SET -- 如果 rule_alias 已存在则更新
+                                                      transformer_type = EXCLUDED.transformer_type,
+                                                      input_refs = EXCLUDED.input_refs,
+                                                      config = EXCLUDED.config,
+                                                      output_variable_name = EXCLUDED.output_variable_name,
+                                                      description = EXCLUDED.description,
+                                                      updated_at = now();
+
+
+-- 4. 新增一个模板映射配置 (report_template_mapping) - 关联 id=1
+
+--    映射5: 表格数据
+INSERT INTO report_template_mapping (report_def_id, template_tag, data_source_ref)
+VALUES (
+           1, -- 关联 report_definition.id = 1
+           '{#loan_detail_table}',                   -- Word 模板中的新表格标签
+           'loan_table_builder_rule'                 -- 数据来源: 新添加的 TableBuilder 规则的输出
+       )
+ON CONFLICT (report_def_id, template_tag) DO UPDATE SET -- 如果 template_tag 已存在则更新
+                                                        data_source_ref = EXCLUDED.data_source_ref,
+                                                        updated_at = now();
+
